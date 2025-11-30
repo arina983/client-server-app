@@ -3,7 +3,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#define PORT 12346
+#define PORT 12345
 
 int main(int argc, char const* argv[])
 {
@@ -34,15 +34,15 @@ int main(int argc, char const* argv[])
         printf("\nConnection Failed \n");
         return -1;
     }
-
+    while(1){
     // Отправка сообщения серверу
-    send(client_fd, hello, strlen(hello), 0);
-    printf("Hello message sent\n");
-    valread = read(client_fd, buffer,
-                   1024 - 1);
-    printf("%s\n", buffer);
-
-    // closing the connected socket
+        send(client_fd, hello, strlen(hello), 0);
+        printf("Hello message sent\n");
+        valread = read(client_fd, buffer, 1024 - 1);
+        buffer[valread] = '\0';
+        printf("%s\n", buffer);
+        sleep(1);
+    }
     close(client_fd);
     return 0;
 }
