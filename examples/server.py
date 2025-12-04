@@ -1,25 +1,35 @@
-import socket
+import time
+import zmq
 
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.bind(('127.0.0.1', 12345))
+def print_data():
+    with open('C:/Users/Ариша/OneDrive/Рабочий стол/visual.txt', 'r') as f:
+        print(f.read())
 
-server_socket.listen(1)
+context = zmq.Context()
+server = context.socket(zmq.REP)
+
+server.bind("tcp://172.20.10.18:5555")
+server.RCVTIMEO = 2000
 
 print("Сервер запущен и ожидает подключений...")
+file = open('C:/Users/Ариша/OneDrive/Рабочий стол/visual.txt', 'a')
+count = 0
 
-while 1:
-    client_socket, client_address = server_socket.accept()
-    print(f"Подключение установлено с {client_address}")
-
+try:
     while 1:
-        data = client_socket.recv(1024)
-        if not data:
-            break
-        print(f"Получены данные: {data}")
-
-        client_socket.sendall(b'Hello, client!')
-
-    client_socket.close()
-
-
-
+        try:
+            data = server.recv()
+            print(f"Получены данные: {data}")
+            count += 1
+            file.write(f"{count} : {data}\n")
+            server.send(b'Hello, from Server!')
+            print(f"Количество полученных пакетов: {count}")
+        except zmq.Again:
+            continue
+except KeyboardInterrupt:
+    print('Сервер завершил работу')
+    print_data()
+finally:
+    file.close()
+    server.close()
+    context.term()
