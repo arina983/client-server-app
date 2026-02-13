@@ -8,3 +8,6 @@
 [submodule "visual_programming"]
 	path = visual_programming
 	url = https://github.com/arina983/visual_programming
+[submodule "third_party/cppzmq"]
+	path = third_party/cppzmq
+	url = https://github.com/zeromq/cppzmq.git

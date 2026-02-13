@@ -2,20 +2,23 @@ cmake_minimum_required(VERSION 3.14)
 project(backend_notes)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(THIRD_PARTY_DIR ${PROJECT_SOURCE_DIR}/third_party)
 set(SRC_DIR ${PROJECT_SOURCE_DIR}/src)
-set(INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include)
 
-# SDL2
-find_package(SDL2 REQUIRED)
+find_package(Threads REQUIRED)
+
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(SDL2 REQUIRED sdl2)
 include_directories(${SDL2_INCLUDE_DIRS})
 
-# OpenGL/GLEW
+pkg_check_modules(ZMQ REQUIRED libzmq)
+include_directories(${ZMQ_INCLUDE_DIRS})
+
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
-
-include_directories(${INCLUDE_DIR})
 
 add_library(imgui STATIC
     ${THIRD_PARTY_DIR}/imgui/imgui.cpp
@@ -39,4 +42,14 @@ target_link_libraries(implot PRIVATE imgui)
 target_compile_options(implot PRIVATE -fPIC)
 
 add_executable(main ${SRC_DIR}/main.cpp)
-target_link_libraries(main PRIVATE imgui implot ${SDL2_LIBRARIES} ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES})
+
+target_link_libraries(main PRIVATE
+    imgui
+    implot
+    ${SDL2_LIBRARIES}
+    ${ZMQ_LIBRARIES}
+    GLEW::GLEW
+    OpenGL::GL
+    Threads::Threads
+    dl
+)

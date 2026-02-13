@@ -1,5 +1,0 @@
-/home/arina/arina2/visual/build/CMakeFiles/imgui.dir
-/home/arina/arina2/visual/build/CMakeFiles/implot.dir
-/home/arina/arina2/visual/build/CMakeFiles/main.dir
-/home/arina/arina2/visual/build/CMakeFiles/edit_cache.dir
-/home/arina/arina2/visual/build/CMakeFiles/rebuild_cache.dir

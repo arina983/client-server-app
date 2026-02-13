@@ -1,0 +1,27 @@
+# Сборка
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+main
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Конфигурация
+*.ini
+*.json
+*.user
+*.userosscache
+*.sln.docstates
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
