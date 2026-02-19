@@ -9,6 +9,7 @@
 #include <SDL2/SDL.h>
 #include "backends/imgui_impl_opengl3.h"
 #include "backends/imgui_impl_sdl2.h"
+#include <mutex>
 
 using namespace std;
 
@@ -21,7 +22,7 @@ struct location {
     location() : latitude(0), longitude(0), altitude(0), current_time(0) {}
 };
 
-void thread1(location *loc){
+void thread1(location *loc, mutex *mtx){
     ofstream F("visual.json");
     if (!F){
         cout << "Ошибка открытия файла";
@@ -30,7 +31,7 @@ void thread1(location *loc){
     try{
     zmq::context_t context(1);
     zmq::socket_t socket (context, ZMQ_REP);
-    socket.bind("tcp://*:5552");
+    socket.bind("tcp://0.0.0.0:5555");
     int count = 0;
     cout << "Сервер запущен и ожидает подключений"<< endl;
 
@@ -44,8 +45,16 @@ void thread1(location *loc){
         std::string data(static_cast<char*>(request.data()), request.size());
         cout <<"данные получены: "<< data << endl;
         count++;
-        // ТУТ ДОЛЖЕН БЫТЬ ПАРСИНГ 
-        F << data << endl;
+        double lat, lon, alt, tim;
+        if (sscanf(data.c_str(), "%lf,%lf,%lf,%lf", &lat, &lon, &alt, &tim) == 4) {
+            lock_guard<mutex> gui(*mtx);
+            loc->latitude = lat;
+            loc->longitude = lon;
+            loc->altitude = alt;
+            loc->current_time = tim;
+        }
+        //F << data << endl;
+        F << "Longitude: " << loc->longitude << ", Latitude: " << loc->latitude << ", Altitude: " << loc->altitude << ", Time: " << loc->current_time << endl;
         zmq::message_t reply(3);
         memcpy(reply.data(), "OK", 3);
         socket.send(reply, zmq::send_flags::none);
@@ -63,7 +72,7 @@ void thread1(location *loc){
     F.close();
 }
 
-void run_gui(location *loc){
+void run_gui(location *loc, mutex *mtx){
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("Location", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 300, 400, SDL_WINDOW_OPENGL);
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
@@ -85,6 +94,7 @@ void run_gui(location *loc){
         ImGui::NewFrame();
         
         ImGui::Begin("Coordinates");
+        lock_guard<mutex> lock(*mtx);
         ImGui::Text("Latitude: %.6f", loc->latitude);
         ImGui::Text("Longitude: %.6f", loc->longitude);
         ImGui::Text("Altitude: %.2f", loc->altitude);
@@ -108,8 +118,9 @@ void run_gui(location *loc){
 
 int main(int argc, char *argv[]) {
     static location locationInfo;
-    thread zmq_thread(thread1, &locationInfo);
-    thread gui_thread(run_gui, &locationInfo);
+    static mutex mtx;
+    thread zmq_thread(thread1, &locationInfo, &mtx);
+    thread gui_thread(run_gui, &locationInfo, &mtx);
     zmq_thread.join();
     gui_thread.join();
     return 0;
