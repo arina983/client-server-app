@@ -18,8 +18,9 @@ struct location {
     double longitude;
     double altitude;
     double current_time;
+    string cell_info;
     
-    location() : latitude(0), longitude(0), altitude(0), current_time(0) {}
+    location() : latitude(0), longitude(0), altitude(0), current_time(0), cell_info("") {}
 };
 
 void thread1(location *loc, mutex *mtx){
@@ -31,7 +32,7 @@ void thread1(location *loc, mutex *mtx){
     try{
     zmq::context_t context(1);
     zmq::socket_t socket (context, ZMQ_REP);
-    socket.bind("tcp://0.0.0.0:5555");
+    socket.bind("tcp://0.0.0.0:5556");
     int count = 0;
     cout << "Сервер запущен и ожидает подключений"<< endl;
 
@@ -43,23 +44,49 @@ void thread1(location *loc, mutex *mtx){
                 continue;
             }
         std::string data(static_cast<char*>(request.data()), request.size());
-        cout <<"данные получены: "<< data << endl;
+        cout << "!!! ПОЛУЧЕНО: " << data << endl;  
+        
         count++;
-        double lat, lon, alt, tim;
-        if (sscanf(data.c_str(), "%lf,%lf,%lf,%lf", &lat, &lon, &alt, &tim) == 4) {
-            lock_guard<mutex> gui(*mtx);
-            loc->latitude = lat;
-            loc->longitude = lon;
-            loc->altitude = alt;
-            loc->current_time = tim;
+ 
+        size_t delimiter_pos = data.find(" | ");
+        if (delimiter_pos != string::npos) {
+            string coords = data.substr(0, delimiter_pos);
+            string cell_info = data.substr(delimiter_pos + 3);
+            
+            cout << "Координаты: " << coords << endl;
+            
+            double lon, lat, alt;
+            long long tim; 
+            
+            if (sscanf(coords.c_str(), "%lf,%lf,%lf,%lld", &lon, &lat, &alt, &tim) == 4) {
+                lock_guard<mutex> gui(*mtx);
+                loc->longitude = lon;
+                loc->latitude = lat;
+                loc->altitude = alt;
+                loc->current_time = tim;
+                loc->cell_info = cell_info;
+                
+                cout << "! lon=" << lon << ", lat=" << lat 
+                     << ", alt=" << alt << ", time=" << tim << endl;
+                
+                F << "Longitude: " << loc->longitude 
+                  << ", Latitude: " << loc->latitude 
+                  << ", Altitude: " << loc->altitude 
+                  << ", Time: " << loc->current_time 
+                  << ", Cell Info: " << loc->cell_info  << endl;
+                F.flush();
+            } else {
+                cout << "ОШИБКА парсинга координат!" << endl;
+            }
+        } else {
+            cout << "Нет разделителя ' | ' в данных!" << endl;
         }
-        //F << data << endl;
-        F << "Longitude: " << loc->longitude << ", Latitude: " << loc->latitude << ", Altitude: " << loc->altitude << ", Time: " << loc->current_time << endl;
+        
         zmq::message_t reply(3);
         memcpy(reply.data(), "OK", 3);
         socket.send(reply, zmq::send_flags::none);
 
-        cout <<"кол-во полученных данных: " << count <<endl;
+        cout << "кол-во полученных данных: " << count << endl;
     }
     
 }
@@ -74,7 +101,7 @@ void thread1(location *loc, mutex *mtx){
 
 void run_gui(location *loc, mutex *mtx){
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("Location", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 300, 400, SDL_WINDOW_OPENGL);
+    SDL_Window* window = SDL_CreateWindow("Location and Cell Info", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 700, SDL_WINDOW_OPENGL);
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 
     ImGui::CreateContext();
@@ -93,12 +120,25 @@ void run_gui(location *loc, mutex *mtx){
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
         
-        ImGui::Begin("Coordinates");
+        ImGui::Begin("Location and Cell Info");
         lock_guard<mutex> lock(*mtx);
         ImGui::Text("Latitude: %.6f", loc->latitude);
         ImGui::Text("Longitude: %.6f", loc->longitude);
         ImGui::Text("Altitude: %.2f", loc->altitude);
         ImGui::Text("Time: %.0f", loc->current_time);
+        ImGui::Separator();
+        ImGui::Text("information about the cell");
+        string cell = loc->cell_info;
+        //тут переделать
+        if (cell.find("LTE:") != string::npos || cell.find("CellInfoLte") != string::npos) {
+            ImGui::TextColored(ImVec4(0,1,0,1), "network type: LTE (4G)");
+        } else if (cell.find("GSM:") != string::npos || cell.find("CellInfoGsm") != string::npos) {
+            ImGui::TextColored(ImVec4(1,1,0,1), "network type: GSM (2G)");
+        } else if (cell.find("NR:") != string::npos || cell.find("CellInfoNr") != string::npos) {
+            ImGui::TextColored(ImVec4(1,0,0,1), "network type: NR (5G)");
+        }
+        ImGui::TextWrapped("%s", cell.c_str());
+        
         ImGui::End();
 
         ImGui::Render();
