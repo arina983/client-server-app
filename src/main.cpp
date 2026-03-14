@@ -14,6 +14,11 @@
 
 using namespace std;
 
+vector<double> rsrp_history;
+vector<double> rsrq_history;
+vector<double> rssi_history;
+vector<double> time_history;
+
 struct location {
     double latitude;
     double longitude;
@@ -22,9 +27,12 @@ struct location {
     double current_time;
     string cell_info;
     long long traffic_rx;       
-    long long traffic_tx;      
+    long long traffic_tx;  
+    int rsrp;   
+    int rsrq;
+    int rssi; 
     
-    location() : latitude(0), longitude(0), altitude(0), accuracy(0), current_time(0), cell_info(""), traffic_rx(0), traffic_tx(0) {}
+    location() : latitude(0), longitude(0), altitude(0), accuracy(0), current_time(0), cell_info(""), traffic_rx(0), traffic_tx(0), rsrp(0), rsrq(0), rssi(0) {}
 };
 
 void thread1(location *loc, mutex *mtx){
@@ -36,7 +44,7 @@ void thread1(location *loc, mutex *mtx){
     try {
         zmq::context_t context(1);
         zmq::socket_t socket (context, ZMQ_REP);
-        socket.bind("tcp://0.0.0.0:5559");
+        socket.bind("tcp://0.0.0.0:5555");
         int count = 0;
         cout << "Сервер запущен и ожидает подключений"<< endl;
 
@@ -83,8 +91,20 @@ void thread1(location *loc, mutex *mtx){
                 loc->current_time = tim;
                 loc->cell_info = cell_info;
                 loc->traffic_rx = rx;                
-                loc->traffic_tx = tx;               
-                
+                loc->traffic_tx = tx;    
+                regex rsrp_regex("rsrp=(-?[0-9]+)");  
+                regex rsrq_regex("rsrq=(-?[0-9]+)");
+                regex rssi_regex("rssi=(-?[0-9]+)");
+
+                smatch match;
+
+                if (regex_search(cell_info, match, rsrp_regex))
+                loc->rsrp = stoi(match[1]);
+                if (regex_search(cell_info, match, rsrq_regex))
+                loc->rsrq = stoi(match[1]);
+                if (regex_search(cell_info, match, rssi_regex))
+                loc->rssi = stoi(match[1]);
+
                 F << "Longitude: " << loc->longitude << ", Latitude: " << loc->latitude << ", Altitude: " << loc->altitude<< ", Accuracy: " << loc->accuracy << ", Time: " 
                 << loc->current_time << ", Cell Info: " << loc->cell_info << ", Traffic RX: " << loc->traffic_rx << ", Traffic TX: " << loc->traffic_tx << endl;
                 F.flush();
@@ -96,8 +116,8 @@ void thread1(location *loc, mutex *mtx){
     }
 }
         
-        zmq::message_t reply(3);
-        memcpy(reply.data(), "OK", 3);
+        zmq::message_t reply(2);
+        memcpy(reply.data(), "OK", 2);
         socket.send(reply, zmq::send_flags::none);
         cout << "Кол-во полученных данных: " << count << endl;
     }
@@ -176,10 +196,11 @@ void parseCellInfo(const string& cell) {
 }
 void run_gui(location *loc, mutex *mtx){
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("Location and Cell Info", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 900, 800, SDL_WINDOW_OPENGL);
+    SDL_Window* window = SDL_CreateWindow("Location and Cell Info", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1200, 900, SDL_WINDOW_OPENGL);
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init("#version 330");
 
@@ -196,34 +217,81 @@ void run_gui(location *loc, mutex *mtx){
         ImGui::NewFrame();
         
         ImGui::Begin("Location and Cell Info");
-        lock_guard<mutex> lock(*mtx);
-    
+        
+        location local_copy;
+        {
+            lock_guard<mutex> lock(*mtx);
+            local_copy = *loc;
+        }
+        static double last_time = 0;
+        if (local_copy.current_time != last_time && local_copy.current_time > 0) {
+            last_time = local_copy.current_time;
+            
+            double t = local_copy.current_time / 1000.0;
+
+            time_history.push_back(t);
+            rsrp_history.push_back((double)local_copy.rsrp);
+            rsrq_history.push_back((double)local_copy.rsrq);
+            rssi_history.push_back((double)local_copy.rssi);
+        }
+        const int MAX_HISTORY = 100;
+        if (rsrp_history.size() > MAX_HISTORY) {
+            rsrp_history.erase(rsrp_history.begin());
+            rsrq_history.erase(rsrq_history.begin());
+            rssi_history.erase(rssi_history.begin());
+            time_history.erase(time_history.begin());
+        }
+
         ImGui::TextColored(ImVec4(1,1,0,1), "Location");
-        ImGui::Text("Latitude:  %.6f", loc->latitude);
-        ImGui::Text("Longitude: %.6f", loc->longitude);
-        ImGui::Text("Altitude:  %.2f m", loc->altitude);
-        ImGui::Text("Accuracy:  %.2f m", loc->accuracy); 
-        ImGui::Text("Time:      %.0f ms", loc->current_time);
+        ImGui::Text("Latitude:  %.6f", local_copy.latitude);
+        ImGui::Text("Longitude: %.6f", local_copy.longitude);
+        ImGui::Text("Altitude:  %.2f m", local_copy.altitude);
+        ImGui::Text("Accuracy:  %.2f m", local_copy.accuracy); 
+        ImGui::Text("Time:      %.0f ms", local_copy.current_time);
         
         ImGui::Separator();
   
         ImGui::TextColored(ImVec4(0,1,1,1), "CellInfo");
-        string cell = loc->cell_info;
-       
-        parseCellInfo(cell);
+        parseCellInfo(local_copy.cell_info);
       
         ImGui::Separator();
         
         ImGui::TextColored(ImVec4(1,0.5,0,1), "Network traffic");
- 
-        double rx_mb = loc->traffic_rx / (1024.0 * 1024.0);
-        double tx_mb = loc->traffic_tx / (1024.0 * 1024.0);
-        double total_mb = (loc->traffic_rx + loc->traffic_tx) / (1024.0 * 1024.0);
-        
-        ImGui::Text("Received (RX): %lld bytes (%.2f MB)", loc->traffic_rx, rx_mb);
-        ImGui::Text("Sent (TX):     %lld bytes (%.2f MB)", loc->traffic_tx, tx_mb);
+
+        double rx_mb = local_copy.traffic_rx / (1024.0 * 1024.0);
+        double tx_mb = local_copy.traffic_tx / (1024.0 * 1024.0);
+        double total_mb = (local_copy.traffic_rx + local_copy.traffic_tx) / (1024.0 * 1024.0);
+        ImGui::Text("Received (RX): %lld bytes (%.2f MB)", local_copy.traffic_rx, rx_mb);
+        ImGui::Text("Sent (TX):     %lld bytes (%.2f MB)", local_copy.traffic_tx, tx_mb);
         ImGui::TextColored(ImVec4(0,1,0,1), "Total:          %.2f MB", total_mb);
         
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0,1,0,1),"Signal Power Graphs");
+
+        if (time_history.size() == rsrp_history.size() && !rsrp_history.empty()) {
+            if (ImPlot::BeginPlot("RSRP")) {
+                ImPlot::SetupAxes("Time", "dBm");
+                ImPlot::PlotLine("RSRP", time_history.data(), rsrp_history.data(), rsrp_history.size());
+                ImPlot::EndPlot();
+            }
+        }
+
+        if (time_history.size() == rsrq_history.size() && !rsrq_history.empty()) {
+            if (ImPlot::BeginPlot("RSRQ")) {
+                ImPlot::SetupAxes("Time", "dB");
+                ImPlot::PlotLine("RSRQ", time_history.data(), rsrq_history.data(), rsrq_history.size());
+                ImPlot::EndPlot();
+            }
+        }
+
+        if (time_history.size() == rssi_history.size() && !rssi_history.empty()) {
+            if (ImPlot::BeginPlot("RSSI")) {
+                ImPlot::SetupAxes("Time", "dBm");
+                ImPlot::PlotLine("RSSI", time_history.data(), rssi_history.data(), rssi_history.size());
+                ImPlot::EndPlot();
+            }
+        }
+
         ImGui::End();
 
         ImGui::Render();
@@ -236,6 +304,7 @@ void run_gui(location *loc, mutex *mtx){
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
+    ImPlot::DestroyContext();
     SDL_GL_DeleteContext(gl_context);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -249,4 +318,4 @@ int main(int argc, char *argv[]) {
     zmq_thread.join();
     gui_thread.join();
     return 0;
-}
+} 
