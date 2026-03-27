@@ -272,7 +272,7 @@ void run_gui(location *loc, mutex *mtx){
     bool running = true;
     static double t0 = 0; 
     static double last_time = 0; 
-    const int MAX_HISTORY = 10000;
+    const int MAX_HISTORY = 1000000;
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
