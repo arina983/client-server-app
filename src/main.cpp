@@ -44,7 +44,7 @@ void thread1(location *loc, mutex *mtx){
     try {
         zmq::context_t context(1);
         zmq::socket_t socket (context, ZMQ_REP);
-        socket.bind("tcp://0.0.0.0:5555");
+        socket.bind("tcp://0.0.0.0:5551");
         int count = 0;
         cout << "Сервер запущен и ожидает подключений"<< endl;
 
@@ -194,6 +194,71 @@ void parseCellInfo(const string& cell) {
         showField(cell, regex("SS-SINR=(-?[0-9]+)"), "SS-SINR", "dB");
     }
 }
+
+void load_from_file(const string& filename, location* loc, mutex* mtx) {
+    ifstream file(filename);
+    if (!file) {
+        cout << "Ошибка открытия файла\n";
+        return;
+    }
+
+    string line;
+
+    while (getline(file, line)) {
+        size_t start = line.find("\"data\":\"");
+    if (start != string::npos) {
+        start += 8; 
+        size_t end = line.rfind("\"");
+        if (end != string::npos && end > start) {
+            line = line.substr(start, end - start);
+        }
+    }
+        string data = line;
+        size_t first_delim = data.find(" | ");
+        size_t second_delim = data.find(" | RX=");
+
+        if (first_delim == string::npos || second_delim == string::npos) continue;
+
+        string coords = data.substr(0, first_delim);
+        string cell_info = data.substr(first_delim + 3, second_delim - (first_delim + 3));
+        string traffic_str = data.substr(second_delim + 6);
+
+        double lon, lat, alt, acc;
+        long long tim;
+        long long rx = 0, tx = 0;
+
+        if (sscanf(coords.c_str(), "%lf,%lf,%lf,%lf,%lld", &lon, &lat, &alt, &acc, &tim) != 5)
+            continue;
+
+        if (sscanf(traffic_str.c_str(), "%lld TX=%lld", &rx, &tx) != 2)
+            continue;
+
+        int rsrp = 0, rsrq = 0, rssi = 0;
+
+        smatch m;
+        if (regex_search(cell_info, m, regex("rsrp=(-?[0-9]+)"))) rsrp = stoi(m[1]);
+        if (regex_search(cell_info, m, regex("rsrq=(-?[0-9]+)"))) rsrq = stoi(m[1]);
+        if (regex_search(cell_info, m, regex("rssi=(-?[0-9]+)"))) rssi = stoi(m[1]);
+
+        {
+            lock_guard<mutex> lock(*mtx);
+
+            loc->longitude = lon;
+            loc->latitude = lat;
+            loc->altitude = alt;
+            loc->accuracy = acc;
+            loc->current_time = tim;
+            loc->cell_info = cell_info;
+            loc->traffic_rx = rx;
+            loc->traffic_tx = tx;
+            loc->rsrp = rsrp;
+            loc->rsrq = rsrq;
+            loc->rssi = rssi;
+        }
+        this_thread::sleep_for(chrono::milliseconds(200));
+    }
+}
+
 void run_gui(location *loc, mutex *mtx){
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("Location and Cell Info", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1200, 900, SDL_WINDOW_OPENGL);
@@ -205,6 +270,9 @@ void run_gui(location *loc, mutex *mtx){
     ImGui_ImplOpenGL3_Init("#version 330");
 
     bool running = true;
+    static double t0 = 0; 
+    static double last_time = 0; 
+    const int MAX_HISTORY = 10000;
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -223,7 +291,6 @@ void run_gui(location *loc, mutex *mtx){
             lock_guard<mutex> lock(*mtx);
             local_copy = *loc;
         }
-        static double last_time = 0;
         if (local_copy.current_time != last_time && local_copy.current_time > 0) {
             last_time = local_copy.current_time;
             
@@ -233,13 +300,14 @@ void run_gui(location *loc, mutex *mtx){
             rsrp_history.push_back((double)local_copy.rsrp);
             rsrq_history.push_back((double)local_copy.rsrq);
             rssi_history.push_back((double)local_copy.rssi);
+            
+        if (time_history.size() > MAX_HISTORY) {
+            size_t remove_count = time_history.size() - MAX_HISTORY;
+            time_history.erase(time_history.begin(), time_history.begin() + remove_count);
+            rsrp_history.erase(rsrp_history.begin(), rsrp_history.begin() + remove_count);
+            rsrq_history.erase(rsrq_history.begin(), rsrq_history.begin() + remove_count);
+            rssi_history.erase(rssi_history.begin(), rssi_history.begin() + remove_count);
         }
-        const int MAX_HISTORY = 100;
-        if (rsrp_history.size() > MAX_HISTORY) {
-            rsrp_history.erase(rsrp_history.begin());
-            rsrq_history.erase(rsrq_history.begin());
-            rssi_history.erase(rssi_history.begin());
-            time_history.erase(time_history.begin());
         }
 
         ImGui::TextColored(ImVec4(1,1,0,1), "Location");
@@ -303,8 +371,8 @@ void run_gui(location *loc, mutex *mtx){
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
-    ImPlot::DestroyContext();
+    ImGui::DestroyContext(nullptr);   
+    ImPlot::DestroyContext(nullptr);
     SDL_GL_DeleteContext(gl_context);
     SDL_DestroyWindow(window);
     SDL_Quit();
