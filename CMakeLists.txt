@@ -17,8 +17,12 @@ include_directories(${SDL2_INCLUDE_DIRS})
 pkg_check_modules(ZMQ REQUIRED libzmq)
 include_directories(${ZMQ_INCLUDE_DIRS})
 
+include_directories(${PostgreSQL_INCLUDE_DIRS})
+
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
+# Ищем пакет PostgreSQL (в котором есть libpq)
+find_package(PostgreSQL REQUIRED)
 
 add_library(imgui STATIC
     ${THIRD_PARTY_DIR}/imgui/imgui.cpp
@@ -52,4 +56,5 @@ target_link_libraries(main PRIVATE
     OpenGL::GL
     Threads::Threads
     dl
+    PostgreSQL::PostgreSQL
 )
