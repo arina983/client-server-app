@@ -8,7 +8,7 @@
 void run_server(Location* loc, std::mutex* mtx) {
     std::ofstream F("visual.json");
 
-    PGconn *conn = PQconnectdb("host=localhost port=5433 dbname=mobile_data user=postgres password=YOU_PASSWORD");
+    PGconn *conn = PQconnectdb("host=localhost port=5433 dbname=mobile_data user=postgres password=Lunahod2007");
     if (PQstatus(conn) != CONNECTION_OK) {
         std::cerr << "DB ERROR: " << PQerrorMessage(conn) << std::endl;
         return;
@@ -34,17 +34,16 @@ void run_server(Location* loc, std::mutex* mtx) {
         try {
             json j = json::parse(data);
 
-            std::cout << "Lat: " << j.value("latitude", 0.0) 
-                      << " Lon: " << j.value("longitude", 0.0) << std::endl;
+            std::cout << "Lat: " << j.value("latitude", 0.0) << " Lon: " << j.value("longitude", 0.0) << std::endl;
 
             Location new_loc{};
-            new_loc.latitude     = j.value("latitude", 0.0);
-            new_loc.longitude    = j.value("longitude", 0.0);
-            new_loc.altitude     = j.value("altitude", 0.0);
-            new_loc.accuracy     = j.value("accuracy", 0.0);
+            new_loc.latitude = j.value("latitude", 0.0);
+            new_loc.longitude = j.value("longitude", 0.0);
+            new_loc.altitude = j.value("altitude", 0.0);
+            new_loc.accuracy = j.value("accuracy", 0.0);
             new_loc.current_time = j.value("time", 0LL);
-            new_loc.traffic_rx   = j.value("rx", 0LL);
-            new_loc.traffic_tx   = j.value("tx", 0LL);
+            new_loc.traffic_rx = j.value("rx", 0LL);
+            new_loc.traffic_tx = j.value("tx", 0LL);
 
             double raw_t = new_loc.current_time / 1000.0;
             if (start_time < 0 && raw_t > 0) start_time = raw_t;
@@ -59,18 +58,17 @@ void run_server(Location* loc, std::mutex* mtx) {
                     *loc = new_loc;
                 }
             }
-            std::string lat_s  = std::to_string(new_loc.latitude);
-            std::string lon_s  = std::to_string(new_loc.longitude);
-            std::string alt_s  = std::to_string(new_loc.altitude);
-            std::string acc_s  = std::to_string(new_loc.accuracy);
+            std::string lat_s = std::to_string(new_loc.latitude);
+            std::string lon_s = std::to_string(new_loc.longitude);
+            std::string alt_s = std::to_string(new_loc.altitude);
+            std::string acc_s = std::to_string(new_loc.accuracy);
             std::string time_s = std::to_string(new_loc.current_time);
-            std::string rx_s   = std::to_string(new_loc.traffic_rx);
-            std::string tx_s   = std::to_string(new_loc.traffic_tx);
+            std::string rx_s = std::to_string(new_loc.traffic_rx);
+            std::string tx_s = std::to_string(new_loc.traffic_tx);
             std::string rsrp_s = std::to_string(new_loc.rsrp);
             std::string rsrq_s = std::to_string(new_loc.rsrq);
             std::string rssi_s = std::to_string(new_loc.rssi);
-            std::string sinr_s = (new_loc.sinr == std::numeric_limits<int>::min()) 
-                               ? "NULL" : std::to_string(new_loc.sinr);
+            std::string sinr_s = (new_loc.sinr == std::numeric_limits<int>::min()) ? "NULL" : std::to_string(new_loc.sinr);
 
             const char* paramValues[11] = {
                 lat_s.c_str(), lon_s.c_str(), alt_s.c_str(), acc_s.c_str(),
@@ -82,8 +80,7 @@ void run_server(Location* loc, std::mutex* mtx) {
             PGresult* res = PQexecParams(conn,
                 "INSERT INTO device_data "
                 "(latitude, longitude, altitude, accuracy, timestamp, traffic_rx, traffic_tx, rsrp, rsrq, rssi, sinr) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
-                11, nullptr, paramValues, nullptr, nullptr, 0);
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id", 11, nullptr, paramValues, nullptr, nullptr, 0);
 
             if (PQresultStatus(res) == PGRES_TUPLES_OK) {
                 std::string device_data_id = PQgetvalue(res, 0, 0); 
@@ -110,8 +107,7 @@ void run_server(Location* loc, std::mutex* mtx) {
 
                         PGresult* c_res = PQexecParams(conn,
                             "INSERT INTO cells_history (device_data_id, pci, rsrp, rsrq, rssi, sinr) "
-                            "VALUES ($1, $2, $3, $4, $5, $6)",
-                            6, nullptr, cellParams, nullptr, nullptr, 0);
+                            "VALUES ($1, $2, $3, $4, $5, $6)", 6, nullptr, cellParams, nullptr, nullptr, 0);
                         
                         if (PQresultStatus(c_res) != PGRES_COMMAND_OK) {
                             std::cerr << "PCI INSERT ERROR: " << PQerrorMessage(conn) << std::endl;

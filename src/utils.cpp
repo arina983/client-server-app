@@ -3,42 +3,6 @@
 #include <iostream>
 #include <climits>
 
-void showField(const std::string& text, const std::regex& r, const char* label, const char* unit) {
-    std::smatch match;
-    if (std::regex_search(text, match, r)) {
-        if (unit && strlen(unit) > 0)
-            ImGui::Text("    %s: %s %s", label, match[1].str().c_str(), unit);
-        else
-            ImGui::Text("    %s: %s", label, match[1].str().c_str());
-    }
-}
-
-void printCellInfoPretty(const std::string& cell) {
-    std::smatch m;
-    std::cout << "CELL INFO\n";
-
-    if (std::regex_search(cell, m, std::regex("mMcc=([0-9]+)")))      std::cout << "MCC: " << m[1] << std::endl;
-    if (std::regex_search(cell, m, std::regex("mMnc=([0-9]+)")))      std::cout << "MNC: " << m[1] << std::endl;
-    if (std::regex_search(cell, m, std::regex("mCi=([0-9]+)")))       std::cout << "Cell ID: " << m[1] << std::endl;
-    if (std::regex_search(cell, m, std::regex("mPci=([0-9]+)")))      std::cout << "PCI: " << m[1] << std::endl;
-    if (std::regex_search(cell, m, std::regex("mTac=([0-9]+)")))      std::cout << "TAC: " << m[1] << std::endl;
-    if (std::regex_search(cell, m, std::regex("mEarfcn=([0-9]+)")))   std::cout << "EARFCN: " << m[1] << std::endl;
-    if (std::regex_search(cell, m, std::regex("rsrp=(-?[0-9]+)")))    std::cout << "RSRP: " << m[1] << " dBm\n";
-    if (std::regex_search(cell, m, std::regex("rsrq=(-?[0-9]+)")))    std::cout << "RSRQ: " << m[1] << " dB\n";
-    if (std::regex_search(cell, m, std::regex("rssi=(-?[0-9]+)")))    std::cout << "RSSI: " << m[1] << " dBm\n";
-
-    std::cout << "=================\n";
-}
-
-void parseCellInfo(const std::string& cell) {
-    if (cell.find("LTE") != std::string::npos) {
-        ImGui::TextColored(ImVec4(0,1,0,1), "LTE (4G)");
-        showField(cell, std::regex("rsrp=(-?[0-9]+)"), "RSRP", "dBm");
-        showField(cell, std::regex("rsrq=(-?[0-9]+)"), "RSRQ", "dB");
-        showField(cell, std::regex("rssi=(-?[0-9]+)"), "RSSI", "dBm");
-    }
-}
-
 void updateHistories(const json& j, double t, Location& new_loc) {
     if (!j.contains("cell") || !j["cell"].is_array()) return;
 

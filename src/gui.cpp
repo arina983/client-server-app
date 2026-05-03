@@ -71,8 +71,7 @@ void run_gui(Location* loc, std::mutex* mtx) {
             std::lock_guard<std::mutex> lock(*mtx);
             for (auto& [pci, data] : rsrp_histories) {
                 if (!data.empty())
-                    ImPlot::PlotLine(("PCI " + std::to_string(pci)).c_str(), 
-                                     time_histories[pci].data(), data.data(), (int)data.size());
+                    ImPlot::PlotLine(("PCI " + std::to_string(pci)).c_str(), time_histories[pci].data(), data.data(), (int)data.size());
             }
             ImPlot::EndPlot();
         }
@@ -83,8 +82,7 @@ void run_gui(Location* loc, std::mutex* mtx) {
             std::lock_guard<std::mutex> lock(*mtx);
             for (auto& [pci, data] : rsrq_histories) {
                 if (!data.empty())
-                    ImPlot::PlotLine(("PCI " + std::to_string(pci)).c_str(), 
-                                     time_histories[pci].data(), data.data(), (int)data.size());
+                    ImPlot::PlotLine(("PCI " + std::to_string(pci)).c_str(), time_histories[pci].data(), data.data(), (int)data.size());
             }
             ImPlot::EndPlot();
         }
@@ -95,8 +93,7 @@ void run_gui(Location* loc, std::mutex* mtx) {
             std::lock_guard<std::mutex> lock(*mtx);
             for (auto& [pci, data] : rssi_histories) {
                 if (!data.empty())
-                    ImPlot::PlotLine(("PCI " + std::to_string(pci)).c_str(), 
-                                     time_histories[pci].data(), data.data(), (int)data.size());
+                    ImPlot::PlotLine(("PCI " + std::to_string(pci)).c_str(), time_histories[pci].data(), data.data(), (int)data.size());
             }
             ImPlot::EndPlot();
         }
@@ -107,9 +104,9 @@ void run_gui(Location* loc, std::mutex* mtx) {
             std::lock_guard<std::mutex> lock(*mtx);
             for (auto& [pci, data] : sinr_histories) {
                 if (!data.empty()) {
-                    std::string label = "PCI " + std::to_string(pci);
-                    ImPlot::PlotLine(label.c_str(), time_histories[pci].data(), 
-                                     data.data(), (int)data.size());
+                    std::string label = "PCI " +
+                    std::to_string(pci);
+                    ImPlot::PlotLine(label.c_str(), time_histories[pci].data(), data.data(), (int)data.size());
                 }
             }
             ImPlot::EndPlot();
@@ -132,8 +129,7 @@ void run_gui(Location* loc, std::mutex* mtx) {
         double view_width = plot_size.x / 256.0;
         double view_height = plot_size.y / 256.0;
 
-        ImPlot::SetNextAxesLimits(playerPos.x - view_width/2, playerPos.x + view_width/2, 
-                                -playerPos.y - view_height/2, -playerPos.y + view_height/2, ImGuiCond_Always);
+        ImPlot::SetNextAxesLimits(playerPos.x - view_width/2, playerPos.x + view_width/2, -playerPos.y - view_height/2, -playerPos.y + view_height/2, ImGuiCond_Always);
 
         if (ImPlot::BeginPlot("##OSM", ImVec2(-1, -1), ImPlotFlags_Equal | ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect)) {
             
@@ -147,8 +143,7 @@ void run_gui(Location* loc, std::mutex* mtx) {
                     TileCoords t = {x, y, zoom};
                     GLuint id = tileManager.getTileTexture(t);
                     if (id != 0) {
-                        ImPlot::PlotImage("##tile", (void*)(intptr_t)id, 
-                            ImVec2(x, -(y + 1)), ImVec2(x + 1, -y));
+                        ImPlot::PlotImage("##tile", (void*)(intptr_t)id, ImVec2(x, -(y + 1)), ImVec2(x + 1, -y));
                     }
                 }
             }

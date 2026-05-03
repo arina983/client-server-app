@@ -31,5 +31,4 @@ extern std::map<int, std::vector<double>> rsrq_histories;
 extern std::map<int, std::vector<double>> rssi_histories;
 extern std::map<int, std::vector<double>> sinr_histories;
 extern std::map<int, std::vector<double>> time_histories;
-
 extern std::mutex data_mutex;
